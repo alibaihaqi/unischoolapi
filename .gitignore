@@ -1,0 +1,11 @@
+# ENV
+.env
+
+# exclude dist
+dist
+
+# exclude package-lock
+package-lock.json
+
+# exclude modules
+node_modules
