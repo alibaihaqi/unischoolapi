@@ -4,6 +4,10 @@ import mongoose from 'mongoose';
 const SALT_WORK_FACTOR: number = 15;
 const Schema = mongoose.Schema;
 const UserSchema: any = new Schema({
+  active: {
+    default: false,
+    type: Boolean,
+  },
   birthDate: {
     default: '',
     type: Date,

@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import _ from 'underscore';
 import uuid from 'uuidv4';
 import Model from '../models';
+import ResponHandler from '../utils/getResponHandler';
 const { User } = Model;
 
 class UserController {
@@ -14,37 +15,13 @@ class UserController {
       } = req.body;
 
       const checkUser = await User.findOne({ email });
-      if (checkUser !== null) {
-        return res
-          .status(409)
-          .json({
-            message: {
-              code: 409,
-              message: 'User is already exists',
-            },
-            success: false,
-          });
+      if (!_.isNull(checkUser)) {
+        return ResponHandler.authResponseHandler(res, 409, 'User is already exists', false);
       }
 
       const regisUser = await User.create({ userId: uuid(), email, username, password });
-      const getUserData = regisUser.toJSON();
 
-      const createJwt = jwt.sign({
-        email: getUserData.email,
-        userId: getUserData.userId,
-        username: getUserData.username
-      }, process.env.USER_JWT_SK);
-
-      return res
-        .status(200)
-        .json({
-          message: {
-            auth: createJwt,
-            code: 200,
-            message: regisUser,
-          },
-          success: true,
-        });
+      return ResponHandler.authResponseHandler(res, 200, regisUser, true);
     } catch (e) {
       // tslint:disable-next-line:no-console
       res.send(e);
@@ -63,33 +40,21 @@ class UserController {
       if (loginUser !== null) {
         const getUserData = loginUser.toJSON();
 
-        const createJwt = jwt.sign({
-          email: getUserData.email,
-          userId: getUserData.userId,
-          username: getUserData.username
-        }, process.env.USER_JWT_SK);
+        if (getUserData.active) {
+          const createJwt = jwt.sign({
+            email: getUserData.email,
+            userId: getUserData.userId,
+            username: getUserData.username
+          }, process.env.USER_JWT_SK);
 
-        return res
-          .status(200)
-          .json({
-            message: {
-              auth: createJwt,
-              code: 200,
-              message: loginUser,
-            },
-            success: true,
-          });
+          return ResponHandler.authResponseHandler(res, 200, loginUser, true, createJwt);
+        }
+
+        return ResponHandler.authResponseHandler(res, 200, loginUser, true);
+
       }
 
-      return res
-        .status(404)
-        .json({
-          message: {
-            code: 404,
-            message: 'email or password is wrong',
-          },
-          success: false,
-        });
+      return ResponHandler.authResponseHandler(res, 404, 'email or password is wrong', false);
     } catch (e) {
       // tslint:disable-next-line:no-console
       res.send(e);
@@ -115,26 +80,10 @@ class UserController {
         username: decToken.username,
       }, { $set: { name, birthDate } }, { new: true }, (err, result) => {
         if (err) {
-          return res
-            .status(400)
-            .json({
-              message: {
-                code: 400,
-                message: err.message,
-              },
-              success: false,
-            });
+          return ResponHandler.authResponseHandler(res, 400, err.message, false);
         }
 
-        return res
-          .status(200)
-          .json({
-            message: {
-              code: 200,
-              message: result,
-            },
-            success: true,
-          });
+        return ResponHandler.authResponseHandler(res, 200, result, true, authentication);
       });
     } catch (e) {
       // tslint:disable-next-line:no-console
@@ -154,62 +103,21 @@ class UserController {
 
       const decToken: any = jwt.verify(authentication, process.env.USER_JWT_SK);
 
-      User.findOneAndUpdate({
-        email: decToken.email,
-        userId: decToken.userId,
-        username: decToken.username,
-      }, { $set: { password: newPassword } }, { new: true }, (err, result: any) => {
+      User.findOne({
+        email: decToken.email, userId: decToken.userId,
+        username: decToken.username
+      }, (err, result: any) => {
         if (err) {
-          return res
-            .status(400)
-            .json({
-              message: {
-                code: 400,
-                message: err.message,
-              },
-              success: false,
-            });
+          return ResponHandler.authResponseHandler(res, 400, err.message, false);
         }
 
         if (_.isNull(result)) {
-          return res
-            .status(404)
-            .json({
-              message: {
-                code: 404,
-                message: 'Data not found',
-              },
-              success: true,
-            });
+          return ResponHandler.authResponseHandler(res, 404, 'Data not found', false);
         } else {
-          result.encryptPassword(newPassword, function(errEncrypt: any, hash: boolean) {
-            if (errEncrypt) { throw errEncrypt; }
+          result.password = newPassword;
+          result.save();
 
-            if (_.isEmpty(hash)) {
-              res
-                .status(400)
-                .json({
-                  message: {
-                    code: 400,
-                    message: 'Bad Request',
-                  },
-                  success: false,
-                });
-            } else {
-              result.password = hash;
-              result.save();
-
-              return res
-                .status(200)
-                .json({
-                  message: {
-                    code: 200,
-                    message: result,
-                  },
-                  success: true,
-                });
-            }
-          });
+          return ResponHandler.authResponseHandler(res, 200, result, true, authentication);
         }
       });
     } catch (e) {

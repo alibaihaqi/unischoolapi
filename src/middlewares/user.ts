@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import _ from 'underscore';
 import Model from '../models';
+import RespondHandler from '../utils/getResponHandler';
 const { User } = Model;
 
 class UserMiddleware {
@@ -13,15 +14,7 @@ class UserMiddleware {
       } = req.body;
 
       if (_.isEmpty(email) || _.isEmpty(username) || _.isEmpty(password)) {
-        return res
-          .status(400)
-          .json({
-            message: {
-              code: 400,
-              message: 'Bad Request',
-            },
-            success: false,
-          });
+        return RespondHandler.authResponseHandler(res, 400, 'Bad Request', false);
       } else {
         next();
       }
@@ -38,15 +31,7 @@ class UserMiddleware {
       } = req.body;
 
       if (_.isEmpty(email) || _.isEmpty(password)) {
-        return res
-          .status(400)
-          .json({
-            message: {
-              code: 400,
-              message: 'Bad Request',
-            },
-            success: false,
-          });
+        return RespondHandler.authResponseHandler(res, 400, 'Bad Request', false);
       } else {
         next();
       }
@@ -66,26 +51,10 @@ class UserMiddleware {
       if (decToken) {
         next();
       } else {
-        res
-          .status(403)
-          .json({
-            message: {
-              code: 403,
-              message: 'User doesn\'t have a permission',
-            },
-            success: false,
-          });
+        return RespondHandler.authResponseHandler(res, 403, 'User doesn\'t have a permission', false);
       }
     } catch (e) {
-      res
-        .status(403)
-        .json({
-          message: {
-            code: 403,
-            message: e.message,
-          },
-          success: false,
-        });
+      return RespondHandler.authResponseHandler(res, 403, 'User doesn\'t have a permission', false);
     }
   }
 
@@ -95,8 +64,6 @@ class UserMiddleware {
       password,
     } = req.body;
 
-    // tslint:disable-next-line:no-console
-    console.log('masuk check pass');
     try {
       const checkData = /\@/i.test(email) ? 'email' : 'username';
 
@@ -104,45 +71,19 @@ class UserMiddleware {
         [checkData]: email,
       }, function(errFindOne, user: any) {
         if (errFindOne) {
-          res
-            .status(500)
-            .json({
-              message: {
-                code: 500,
-                message: 'Error Find One',
-              },
-              success: false,
-            });
+          return RespondHandler.authResponseHandler(res, 500, errFindOne.message, false);
         }
-        // tslint:disable-next-line:no-console
-        console.log('masuk findOne', user);
+
         // test a matching password
         user.comparePassword(password, function(errComparePass: any, isMatch: boolean) {
           if (errComparePass) {
-            res
-              .status(500)
-              .json({
-                message: {
-                  code: 500,
-                  message: 'wrong password',
-                },
-                success: false,
-              });
+            return RespondHandler.authResponseHandler(res, 500, errComparePass.message, false);
           }
-          // tslint:disable-next-line:no-console
-          console.log(isMatch);
+
           if (isMatch) {
             next();
           } else {
-            res
-              .status(403)
-              .json({
-                message: {
-                  code: 403,
-                  message: 'wrong password',
-                },
-                success: false,
-              });
+            return RespondHandler.authResponseHandler(res, 403, 'wrong password', false);
           }
         });
       });
@@ -167,24 +108,20 @@ class UserMiddleware {
         userId: decToken.userId,
         username: decToken.username
       }, function(errFindOne, user: any) {
-        if (errFindOne) { throw errFindOne; }
+        if (errFindOne) {
+          return RespondHandler.authResponseHandler(res, 500, errFindOne.message, false);
+        }
 
         // test a matching password
         user.comparePassword(password, function(errComparePass: any, isMatch: boolean) {
-          if (errComparePass) { throw errComparePass; }
+          if (errComparePass) {
+            return RespondHandler.authResponseHandler(res, 500, errComparePass.message, false);
+          }
 
           if (isMatch) {
             next();
           } else {
-            res
-              .status(403)
-              .json({
-                message: {
-                  code: 403,
-                  message: 'Wrong password',
-                },
-                success: false,
-              });
+            return RespondHandler.authResponseHandler(res, 403, 'Wrong password', false);
           }
         });
       });
